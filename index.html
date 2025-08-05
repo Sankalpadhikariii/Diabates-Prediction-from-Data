@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Diabetes Prediction</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 2em;
+        }
+        form div {
+            margin-bottom: 1em;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5em;
+        }
+        input {
+            width: 200px;
+            padding: 0.5em;
+        }
+        button {
+            padding: 0.7em 1.5em;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result-container {
+            margin-top: 2em;
+            padding: 1em;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            min-height: 50px;
+        }
+        .prediction-positive {
+            color: white;
+            background-color: #dc3545;
+            border: 1px solid #dc3545;
+            padding: 1em;
+            font-weight: bold;
+        }
+        .prediction-negative {
+            color: white;
+            background-color: #28a745;
+            border: 1px solid #28a745;
+            padding: 1em;
+            font-weight: bold;
+        }
+        .error {
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 1em;
+        }
+        .confidence-score {
+            margin-top: 1em;
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #333;
+        }
+        .confidence-bar-container {
+            width: 200px;
+            background-color: #ddd;
+            border-radius: 5px;
+            margin-top: 0.5em;
+        }
+        .confidence-bar {
+            height: 20px;
+            background-color: #28a745;
+            width: 0%;
+            border-radius: 5px;
+            transition: width 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <h1>Diabetes Prediction Form</h1>
+
+    <form id="prediction-form">
+        <div>
+            <label for="pregnancies">Pregnancies:</label>
+            <input type="number" id="pregnancies" name="Pregnancies" placeholder="e.g., 6" required />
+        </div>
+        <div>
+            <label for="glucose">Glucose:</label>
+            <input type="number" id="glucose" name="Glucose" placeholder="e.g., 148" required />
+        </div>
+        <div>
+            <label for="blood_pressure">Blood Pressure:</label>
+            <input type="number" id="blood_pressure" name="BloodPressure" placeholder="e.g., 72" required />
+        </div>
+        <div>
+            <label for="skin_thickness">Skin Thickness:</label>
+            <input type="number" id="skin_thickness" name="SkinThickness" placeholder="e.g., 35" required />
+        </div>
+        <div>
+            <label for="insulin">Insulin:</label>
+            <input type="number" id="insulin" name="Insulin" placeholder="e.g., 0" required />
+        </div>
+        <div>
+            <label for="bmi">BMI:</label>
+            <input type="number" step="0.1" id="bmi" name="BMI" placeholder="e.g., 33.6" required />
+        </div>
+        <div>
+            <label for="dpf">Diabetes Pedigree Function:</label>
+            <input type="number" step="0.001" id="dpf" name="DiabetesPedigreeFunction" placeholder="e.g., 0.627" required />
+        </div>
+        <div>
+            <label for="age">Age:</label>
+            <input type="number" id="age" name="Age" placeholder="e.g., 50" required />
+        </div>
+        <div>
+            <button type="submit">Predict</button>
+        </div>
+    </form>
+
+    <div id="result-container"></div>
+
+    <script>
+        console.log("JavaScript file loaded successfully!");
+
+        const predictionForm = document.getElementById('prediction-form');
+        const resultContainer = document.getElementById('result-container');
+
+        predictionForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            console.log("Form submission detected! Default action prevented.");
+
+            // Clear previous results
+            resultContainer.innerHTML = '';
+
+            const formData = new FormData(predictionForm);
+            const data = Object.fromEntries(formData.entries());
+            for (const key in data) {
+                data[key] = parseFloat(data[key]);
+            }
+            console.log("Gathered and cleaned form data:", data);
+
+            const jsonPayload = JSON.stringify(data);
+            console.log("Constructed JSON Payload:", jsonPayload);
+
+            fetch('http://127.0.0.1:5000/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: jsonPayload
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server responded with an error: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(predictionData => {
+                console.log("Success! Received prediction from API:", predictionData);
+
+                // Display the prediction result
+                let message;
+                let cssClass;
+
+                if (predictionData.prediction_class === 1) {
+                    message = "Based on the data provided, the model predicts a positive diagnosis for diabetes.";
+                    cssClass = 'prediction-positive';
+                } else if (predictionData.prediction_class === 0) {
+                    message = "Based on the data provided, the model predicts a negative diagnosis for diabetes.";
+                    cssClass = 'prediction-negative';
+                } else {
+                    message = "The model returned an unexpected result.";
+                    cssClass = 'error';
+                }
+
+                const resultDiv = document.createElement('div');
+                resultDiv.textContent = message;
+                resultDiv.className = cssClass;
+                resultContainer.appendChild(resultDiv);
+
+                // Show confidence score
+                const confidence = predictionData.confidence_scores.Diabetic * 100;
+                console.log("Confidence score:", confidence);
+                const confidenceDiv = document.createElement('div');
+                confidenceDiv.textContent = `Confidence score: ${confidence.toFixed(2)}%`;
+                confidenceDiv.className = 'confidence-score';
+                resultContainer.appendChild(confidenceDiv);
+
+                // Show confidence progress bar
+                const barContainer = document.createElement('div');
+                barContainer.className = 'confidence-bar-container';
+
+                const bar = document.createElement('div');
+                bar.className = 'confidence-bar';
+                bar.style.width = `${confidence.toFixed(2)}%`;
+
+                barContainer.appendChild(bar);
+                resultContainer.appendChild(barContainer);
+            })
+            .catch(error => {
+                console.error("Error communicating with the API:", error);
+
+                const errorDiv = document.createElement('div');
+                errorDiv.textContent = `Error: ${error.message}. Please check the server connection.`;
+                errorDiv.className = 'error';
+                resultContainer.appendChild(errorDiv);
+            });
+        });
+
+        console.log("JavaScript execution completed successfully!");
+    </script>
+</body>
+</html>
